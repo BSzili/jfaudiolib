@@ -131,6 +131,10 @@ int FX_Init
 		SoundCard = ASS_DirectSound;
 #elif defined HAVE_SDL
 		SoundCard = ASS_SDL;
+#elif defined HAVE_PAULA
+		SoundCard = ASS_Paula;
+#elif defined HAVE_AHI
+		SoundCard = ASS_AHI;
 #else
 		SoundCard = ASS_NoSound;
 #endif

@@ -48,6 +48,14 @@
 # include "driver_alsa.h"
 #endif
 
+#ifdef HAVE_AHI
+# include "driver_ahi.h"
+#endif
+
+#ifdef HAVE_PAULA
+# include "driver_paula.h"
+#endif
+
 int ASS_PCMSoundDriver = -1;
 int ASS_CDSoundDriver = -1;
 int ASS_MIDISoundDriver = -1;
@@ -250,6 +258,44 @@ static struct {
         ALSADrv_MIDI_SetTempo,
         ALSADrv_MIDI_Lock,
         ALSADrv_MIDI_Unlock,
+    #else
+        UNSUPPORTED_COMPLETELY,
+    #endif
+    },
+
+    // Amiga AHI
+    {
+        "AHI",
+    #ifdef HAVE_AHI
+        AHIDrv_GetError,
+        AHIDrv_ErrorString,
+        AHIDrv_PCM_Init,
+        AHIDrv_PCM_Shutdown,
+        AHIDrv_PCM_BeginPlayback,
+        AHIDrv_PCM_StopPlayback,
+        AHIDrv_PCM_Lock,
+        AHIDrv_PCM_Unlock,
+        UNSUPPORTED_CD,
+        UNSUPPORTED_MIDI,
+    #else
+        UNSUPPORTED_COMPLETELY,
+    #endif
+    },
+
+    // Amiga Paula
+    {
+        "Paula",
+    #ifdef HAVE_PAULA
+        PaulaDrv_GetError,
+        PaulaDrv_ErrorString,
+        PaulaDrv_PCM_Init,
+        PaulaDrv_PCM_Shutdown,
+        PaulaDrv_PCM_BeginPlayback,
+        PaulaDrv_PCM_StopPlayback,
+        PaulaDrv_PCM_Lock,
+        PaulaDrv_PCM_Unlock,
+        UNSUPPORTED_CD,
+        UNSUPPORTED_MIDI,
     #else
         UNSUPPORTED_COMPLETELY,
     #endif

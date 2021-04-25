@@ -32,4 +32,15 @@ else
   JFAUDIOLIB_HAVE_FLUIDSYNTH=1
   JFAUDIOLIB_LDFLAGS+= $(shell $(PKGCONFIG) --libs fluidsynth)
  endif
+ifeq (aros,$(findstring aros,$(machine)))
+ JFAUDIOLIB_HAVE_AHI=1
+ JFAUDIOLIB_HAVE_SDL=0
+ JFAUDIOLIB_HAVE_VORBIS=0
+endif
+ifeq (amiga,$(findstring amiga,$(machine)))
+ JFAUDIOLIB_HAVE_AHI=1
+ JFAUDIOLIB_HAVE_PAULA=1
+ JFAUDIOLIB_HAVE_SDL=0
+ JFAUDIOLIB_HAVE_VORBIS=0
+endif
 endif

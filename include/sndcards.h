@@ -42,6 +42,8 @@ typedef enum
    ASS_WinMM,
    ASS_FluidSynth,
    ASS_ALSA,
+   ASS_AHI,
+   ASS_Paula,
    ASS_NumSoundCards,
 	ASS_AutoDetect = -2
    } soundcardnames;

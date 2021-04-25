@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2009 Jonathon Fowler <jf@jonof.id.au>
+ Copyright (C) 2021 Szilard Biro
  
  This program is free software; you can redistribute it and/or
  modify it under the terms of the GNU General Public License
@@ -18,28 +18,14 @@
  
  */
 
-#include "asssys.h"
 
-#ifdef _WIN32
-# define WIN32_LEAN_AND_MEAN
-# include <windows.h>
-#else
-# include <sys/types.h>
-# include <sys/time.h>
-# include <unistd.h>
-#endif
+int PaulaDrv_GetError(void);
+const char *PaulaDrv_ErrorString( int ErrorNumber );
 
-void ASS_Sleep(int msec)
-{
-#ifdef _WIN32
-	Sleep(msec);
-#elif defined(__AROS__) || defined(__AMIGA__)
-	usleep(msec * 1000);
-#else
-	struct timeval tv;
-
-	tv.tv_sec = msec / 1000;
-	tv.tv_usec = (msec % 1000) * 1000;
-	select(0, NULL, NULL, NULL, &tv);
-#endif
-}
+int  PaulaDrv_PCM_Init(int * mixrate, int * numchannels, int * samplebits, void * initdata);
+void PaulaDrv_PCM_Shutdown(void);
+int  PaulaDrv_PCM_BeginPlayback(char *BufferStart, int BufferSize,
+                 int NumDivisions, void ( *CallBackFunc )( void ) );
+void PaulaDrv_PCM_StopPlayback(void);
+void PaulaDrv_PCM_Lock(void);
+void PaulaDrv_PCM_Unlock(void);

@@ -54,6 +54,14 @@ else
  ifeq (1,$(JFAUDIOLIB_HAVE_VORBIS))
   CPPFLAGS+= -DHAVE_VORBIS $(shell $(PKGCONFIG) --cflags vorbisfile)
  endif
+ ifeq (1,$(JFAUDIOLIB_HAVE_AHI))
+  CPPFLAGS+= -DHAVE_AHI
+  SOURCES+= src/driver_ahi.c
+ endif
+ ifeq (1,$(JFAUDIOLIB_HAVE_PAULA))
+  CPPFLAGS+= -DHAVE_PAULA
+  SOURCES+= src/driver_paula.c
+ endif
 endif
 
 OBJECTS=$(SOURCES:%.c=%.o)

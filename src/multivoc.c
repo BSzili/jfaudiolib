@@ -41,7 +41,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "multivoc.h"
 #include "_multivc.h"
 
-#ifdef __POWERPC__
+#if defined __POWERPC__ || defined __AMIGA__
 #define LITTLE16 SWAP16
 #define LITTLE32 SWAP32
 #else
