@@ -62,6 +62,10 @@ else
   CPPFLAGS+= -DHAVE_PAULA
   SOURCES+= src/driver_paula.c
  endif
+ ifeq (1,$(JFAUDIOLIB_HAVE_CAMD))
+  CPPFLAGS+= -DHAVE_CAMD
+  SOURCES+= src/driver_camd_midi.c
+ endif
 endif
 
 OBJECTS=$(SOURCES:%.c=%.o)

@@ -44,6 +44,7 @@ typedef enum
    ASS_ALSA,
    ASS_AHI,
    ASS_Paula,
+   ASS_CAMD,
    ASS_NumSoundCards,
 	ASS_AutoDetect = -2
    } soundcardnames;
