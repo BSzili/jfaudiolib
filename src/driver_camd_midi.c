@@ -26,7 +26,7 @@
 #include <exec/ports.h>
 #include <midi/camd.h>
 #include <midi/mididefs.h>
-#include <proto/alib.h>
+#include <clib/alib_protos.h>
 #include <proto/camd.h>
 #include <proto/dos.h>
 #include <proto/exec.h>
@@ -43,7 +43,7 @@ static inline struct ExecBase *getSysBase(void) { return SysBase; }
 static inline struct Library *getCamdBase(void) { return CamdBase; }
 #define LOCAL_CAMDBASE() struct Library *const CamdBase = getCamdBase()
 
-static inline struct Library *getRealTimeBase(void) { return RealTimeBase; }
+static inline struct Library *getRealTimeBase(void) { return (struct Library *)RealTimeBase; }
 #define LOCAL_REALTIMEBASE()                                                   \
   struct Library *const RealTimeBase = getRealTimeBase()
 
@@ -76,7 +76,7 @@ static CamdDrvErrors g_error = CamdDrv_Success;
 static void /*__saveds*/ __stdargs ServiceTask(void);
 
 static void Func_NoteOff(int channel, int key, int velocity) {
-  MidiMsg mm = {0};
+  MidiMsg mm = {{0, 0}};
   mm.mm_Status = MS_NoteOff | channel;
   mm.mm_Data1 = key & 0x7F;
   mm.mm_Data2 = velocity;
@@ -85,7 +85,7 @@ static void Func_NoteOff(int channel, int key, int velocity) {
 }
 
 static void Func_NoteOn(int channel, int key, int velocity) {
-  MidiMsg mm = {0};
+  MidiMsg mm = {{0, 0}};
   mm.mm_Status = MS_NoteOn | channel;
   mm.mm_Data1 = key;
   mm.mm_Data2 = velocity;
@@ -94,7 +94,7 @@ static void Func_NoteOn(int channel, int key, int velocity) {
 }
 
 static void Func_PolyAftertouch(int channel, int key, int pressure) {
-  MidiMsg mm = {0};
+  MidiMsg mm = {{0, 0}};
   mm.mm_Status = MS_PolyPress | channel;
   mm.mm_Data1 = key;
   mm.mm_Data2 = pressure;
@@ -103,7 +103,7 @@ static void Func_PolyAftertouch(int channel, int key, int pressure) {
 }
 
 static void Func_ControlChange(int channel, int number, int value) {
-  MidiMsg mm = {0};
+  MidiMsg mm = {{0, 0}};
   mm.mm_Status = MS_Ctrl | channel;
   mm.mm_Data1 = number;
   mm.mm_Data2 = value;
@@ -112,7 +112,7 @@ static void Func_ControlChange(int channel, int number, int value) {
 }
 
 static void Func_ProgramChange(int channel, int program) {
-  MidiMsg mm = {0};
+  MidiMsg mm = {{0, 0}};
   mm.mm_Status = MS_Prog | channel;
   mm.mm_Data1 = program;
 
@@ -120,7 +120,7 @@ static void Func_ProgramChange(int channel, int program) {
 }
 
 static void Func_ChannelAftertouch(int channel, int pressure) {
-  MidiMsg mm = {0};
+  MidiMsg mm = {{0, 0}};
   mm.mm_Status = MS_ChanPress | channel;
   mm.mm_Data1 = pressure;
 
@@ -128,7 +128,7 @@ static void Func_ChannelAftertouch(int channel, int pressure) {
 }
 
 static void Func_PitchBend(int channel, int lsb, int msb) {
-  MidiMsg mm = {0};
+  MidiMsg mm = {{0, 0}};
   mm.mm_Status = MS_PitchBend | channel;
   mm.mm_Data1 = lsb;
   mm.mm_Data2 = msb;
@@ -137,7 +137,7 @@ static void Func_PitchBend(int channel, int lsb, int msb) {
 }
 
 static void Func_SysEx(const unsigned char *data, int length) {
-  PutSysEx(g_midiLink, data);
+  PutSysEx(g_midiLink, (UBYTE *)data);
 }
 
 void ShutDownCamd(void) {
@@ -152,7 +152,7 @@ void ShutDownCamd(void) {
     g_midiNode = NULL;
   }
   if (RealTimeBase) {
-    CloseLibrary(RealTimeBase);
+    CloseLibrary((struct Library *)RealTimeBase);
     RealTimeBase = NULL;
   }
   if (CamdBase) {
@@ -202,7 +202,7 @@ static int InitCamd(void) {
     g_error = CamdDrv_FailedOpenCamdLibrary;
     goto failure;
   }
-  if (!(RealTimeBase = OpenLibrary("realtime.library", 0))) {
+  if (!(RealTimeBase = (struct RealTimeBase *)OpenLibrary("realtime.library", 0))) {
     g_error = CamdDrv_FailedOpenRealTimeLibrary;
     goto failure;
   }
@@ -365,7 +365,7 @@ static void /*__saveds*/ __stdargs ServiceTask(void) {
   const ULONG signalMask = playerSignalBitMask | SIGBREAKF_CTRL_C;
   struct Player *player = g_player;
 
-  LONG res = SetPlayerAttrs(player, PLAYER_AlarmTime,
+  /*LONG res =*/ SetPlayerAttrs(player, PLAYER_AlarmTime,
                             player->pl_MetricTime + s_CamdTicksPerMidiFrame,
                             PLAYER_Ready, TRUE, TAG_END);
 
@@ -383,7 +383,7 @@ static void /*__saveds*/ __stdargs ServiceTask(void) {
       // causing calls into oiur various FUNC_ midi functions.
       g_service();
 
-      LONG res = SetPlayerAttrs(player, PLAYER_AlarmTime, nextAlarm,
+      /*LONG res =*/ SetPlayerAttrs(player, PLAYER_AlarmTime, nextAlarm,
                                 PLAYER_Ready, TRUE, TAG_END);
     } else if (signals & SIGBREAKF_CTRL_C) {
       break;
