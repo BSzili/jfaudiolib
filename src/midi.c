@@ -43,7 +43,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define TRUE  ( 1 == 1 )
 #define FALSE ( !TRUE )
 
-#ifdef __POWERPC__
+#if defined(__POWERPC__) || defined(__AMIGA__)
 #define LITTLE16 SWAP16
 #define LITTLE32 SWAP32
 #else

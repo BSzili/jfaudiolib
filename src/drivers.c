@@ -56,6 +56,10 @@
 # include "driver_paula.h"
 #endif
 
+#ifdef HAVE_CAMD
+# include "driver_camd_midi.h"
+#endif
+
 int ASS_PCMSoundDriver = -1;
 int ASS_CDSoundDriver = -1;
 int ASS_MIDISoundDriver = -1;
@@ -299,6 +303,26 @@ static struct {
     #else
         UNSUPPORTED_COMPLETELY,
     #endif
+    },
+
+    // Amiga CAMD
+    {
+        "CAMD",
+#ifdef HAVE_CAMD
+        CamdDrv_GetError,
+        CamdDrv_ErrorString,
+        UNSUPPORTED_PCM,
+        UNSUPPORTED_CD,
+        CamdDrv_MIDI_Init,
+        CamdDrv_MIDI_Shutdown,
+        CamdDrv_MIDI_StartPlayback,
+        CamdDrv_MIDI_HaltPlayback,
+        CamdDrv_MIDI_SetTempo,
+        CamdDrv_MIDI_Lock,
+        CamdDrv_MIDI_Unlock,
+#else
+        UNSUPPORTED_COMPLETELY,
+#endif
     },
 };
 
