@@ -161,6 +161,20 @@ void ShutDownCamd(void) {
   }
 }
 
+static LONG GetVarQuiet(CONST_STRPTR name, STRPTR buffer, LONG size, LONG flags) {
+  LONG ret;
+  struct Process *me;
+  APTR oldwindow;
+
+  // Just like GetVar, but it won't open any requesters
+  me = (struct Process *)FindTask(NULL);
+  oldwindow = me->pr_WindowPtr;
+  ret = GetVar(name, buffer, size, flags);
+  me->pr_WindowPtr = oldwindow;
+
+  return ret;
+}
+
 const char *FindMidiDevice(void) {
   LOCAL_CAMDBASE();
 
@@ -186,7 +200,7 @@ const char *FindMidiDevice(void) {
     }
 
     // If the user has a preference outport set, use this instead
-    if (GetVar("DefMidiOut", _outport, sizeof(_outport), 0)) {
+    if (GetVarQuiet("DefMidiOut", _outport, sizeof(_outport), GVF_GLOBAL_ONLY)) {
       retname = _outport;
     }
 
