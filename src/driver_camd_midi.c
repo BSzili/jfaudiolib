@@ -311,7 +311,7 @@ int CamdDrv_MIDI_StartPlayback(void (*service)()) {
 
     // Set priority to 21, so it is just a bit higher than input and mouse
     // movements won't slow down playback
-    if (!(g_serviceTask = (struct Task *)CreateNewProcTags(
+    if ((g_serviceTask = (struct Task *)CreateNewProcTags(
               NP_Name, (Tag) "JFAudioLib MidiService", NP_Priority, 21, NP_Entry,
               (Tag)ServiceTask, NP_StackSize, 64000, NP_Output, (Tag)file,
               TAG_END)) == NULL) {
