@@ -292,7 +292,10 @@ int CamdDrv_MIDI_Init(midifuncs *funcs, const char *params) {
   return MUSIC_Ok;
 }
 
-void CamdDrv_MIDI_Shutdown() { ShutDownCamd(); }
+void CamdDrv_MIDI_Shutdown() {
+  CamdDrv_MIDI_HaltPlayback();
+  ShutDownCamd();
+}
 
 int CamdDrv_MIDI_StartPlayback(void (*service)()) {
 
