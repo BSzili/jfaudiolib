@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2009 Jonathon Fowler <jf@jonof.id.au>
+ Copyright (C) 2021 Mathias Heyer <sonode@gmx.de>
 
  This program is free software; you can redistribute it and/or
  modify it under the terms of the GNU General Public License
@@ -21,21 +21,21 @@
 
 #include "music.h"
 
+#include <clib/alib_protos.h>
+#include <devices/timer.h>
 #include <dos/dosextens.h>
 #include <dos/dostags.h>
 #include <exec/ports.h>
 #include <midi/camd.h>
 #include <midi/mididefs.h>
-#include <clib/alib_protos.h>
 #include <proto/camd.h>
 #include <proto/dos.h>
 #include <proto/exec.h>
-#include <proto/realtime.h>
+#include <proto/timer.h>
 
 #include <string.h>
 
 struct Library *CamdBase = NULL;
-struct RealTimeBase *RealTimeBase = NULL;
 
 static inline struct ExecBase *getSysBase(void) { return SysBase; }
 #define LOCAL_SYSBASE() struct ExecBase *const SysBase = getSysBase()
@@ -43,33 +43,18 @@ static inline struct ExecBase *getSysBase(void) { return SysBase; }
 static inline struct Library *getCamdBase(void) { return CamdBase; }
 #define LOCAL_CAMDBASE() struct Library *const CamdBase = getCamdBase()
 
-static inline struct Library *getRealTimeBase(void) { return (struct Library *)RealTimeBase; }
-#define LOCAL_REALTIMEBASE()                                                   \
-  struct Library *const RealTimeBase = getRealTimeBase()
-
 typedef enum {
   CamdDrv_Success = 0,
   CamdDrv_Error,
   CamdDrv_FailedOpenCamdLibrary,
-  CamdDrv_FailedOpenRealTimeLibrary,
 } CamdDrvErrors;
-
-typedef enum { PC_CHANGETEMPO } PlayerCommand;
-
-typedef struct {
-  struct Message msg;
-  PlayerCommand code;
-  int data;
-} PlayerMessage;
 
 void (*g_service)() = NULL;
 static struct Task *g_MainTask = NULL;
 struct Task *g_serviceTask = NULL;
-static struct Player *g_player = NULL;
 static struct MidiNode *g_midiNode = NULL;
 static struct MidiLink *g_midiLink = NULL;
-static BYTE g_playerSignalBit = -1;
-static volatile int s_CamdTicksPerMidiFrame = 12;
+static volatile unsigned s_midiTicsPerMinute = 17280;
 
 static CamdDrvErrors g_error = CamdDrv_Success;
 
@@ -151,17 +136,14 @@ void ShutDownCamd(void) {
     DeleteMidi(g_midiNode);
     g_midiNode = NULL;
   }
-  if (RealTimeBase) {
-    CloseLibrary((struct Library *)RealTimeBase);
-    RealTimeBase = NULL;
-  }
   if (CamdBase) {
     CloseLibrary(CamdBase);
     CamdBase = NULL;
   }
 }
 
-static LONG GetVarQuiet(CONST_STRPTR name, STRPTR buffer, LONG size, LONG flags) {
+static LONG GetVarQuiet(CONST_STRPTR name, STRPTR buffer, LONG size,
+                        LONG flags) {
   LONG ret;
   struct Process *me;
   APTR oldwindow;
@@ -200,7 +182,8 @@ const char *FindMidiDevice(void) {
     }
 
     // If the user has a preference outport set, use this instead
-    if (GetVarQuiet("DefMidiOut", _outport, sizeof(_outport), GVF_GLOBAL_ONLY)) {
+    if (GetVarQuiet("DefMidiOut", _outport, sizeof(_outport),
+                    GVF_GLOBAL_ONLY)) {
       retname = _outport;
     }
 
@@ -214,10 +197,6 @@ static int InitCamd(void) {
 
   if (!(CamdBase = OpenLibrary("camd.library", 0))) {
     g_error = CamdDrv_FailedOpenCamdLibrary;
-    goto failure;
-  }
-  if (!(RealTimeBase = (struct RealTimeBase *)OpenLibrary("realtime.library", 0))) {
-    g_error = CamdDrv_FailedOpenRealTimeLibrary;
     goto failure;
   }
 
@@ -257,8 +236,6 @@ const char *CamdDrv_ErrorString(int ErrorNumber) {
     return "CamdDrv_Error";
   case CamdDrv_FailedOpenCamdLibrary:
     return "CamdDrv: failed to open camd.library";
-  case CamdDrv_FailedOpenRealTimeLibrary:
-    return "CamdDrv: failed to open realtime.library";
   default:
     return "unknown error";
   }
@@ -312,9 +289,9 @@ int CamdDrv_MIDI_StartPlayback(void (*service)()) {
     // Set priority to 21, so it is just a bit higher than input and mouse
     // movements won't slow down playback
     if ((g_serviceTask = (struct Task *)CreateNewProcTags(
-              NP_Name, (Tag) "JFAudioLib MidiService", NP_Priority, 21, NP_Entry,
-              (Tag)ServiceTask, NP_StackSize, 64000, NP_Output, (Tag)file,
-              TAG_END)) == NULL) {
+             NP_Name, (Tag) "JFAudioLib MidiService", NP_Priority, 21, NP_Entry,
+             (Tag)ServiceTask, NP_StackSize, 64000, NP_Output, (Tag)file,
+             TAG_END)) == NULL) {
       g_error = CamdDrv_Error;
       return MUSIC_Error;
     }
@@ -343,9 +320,7 @@ void CamdDrv_MIDI_HaltPlayback() {
 }
 
 void CamdDrv_MIDI_SetTempo(int tempo, int division) {
-
-  int secondspertick = (60 << 16) / (tempo * division);
-  s_CamdTicksPerMidiFrame = (TICK_FREQ * secondspertick) >> 16;
+  s_midiTicsPerMinute = (tempo * division);
 }
 
 void CamdDrv_MIDI_Lock() {}
@@ -354,55 +329,68 @@ void CamdDrv_MIDI_Unlock() {}
 
 static void /*__saveds*/ __stdargs ServiceTask(void) {
   LOCAL_SYSBASE();
-  LOCAL_REALTIMEBASE();
 
   BOOL initSuccess = FALSE;
 
-  struct Task *thisTask = FindTask(NULL);
+  struct MsgPort *timerMP = NULL;
+  struct timerequest *timerIOReq = NULL;
 
-  if ((g_playerSignalBit = AllocSignal(-1)) == -1) {
+  if ((timerMP = CreateMsgPort()) == NULL) {
+    g_error = CamdDrv_Error;
+    goto failure;
+  }
+  if ((timerIOReq = (struct timerequest *)CreateIORequest(
+           timerMP, sizeof(struct timerequest))) == NULL) {
     g_error = CamdDrv_Error;
     goto failure;
   }
 
-  ULONG err = 0;
-  g_player = CreatePlayer(
-      PLAYER_Name, (Tag) "JFAudioLib Player", PLAYER_Conductor, (Tag) "JFAudioLib Conductor",
-      PLAYER_AlarmSigTask, (Tag)thisTask, PLAYER_AlarmSigBit,
-      (Tag)g_playerSignalBit, PLAYER_ErrorCode, (Tag)&err, TAG_END);
+  timerIOReq->tr_node.io_Command = TR_ADDREQUEST;
+  timerIOReq->tr_time.tv_secs = 0;
 
-  if (!g_player) {
+  BYTE err = OpenDevice("timer.device", UNIT_ECLOCK, &timerIOReq->tr_node, 37);
+  if (err || timerIOReq->tr_node.io_Device == NULL) {
     g_error = CamdDrv_Error;
     goto failure;
   }
 
-  SetConductorState(g_player, CONDSTATE_RUNNING, 0);
-
-  const ULONG playerSignalBitMask = (1UL << g_playerSignalBit);
-  const ULONG signalMask = playerSignalBitMask | SIGBREAKF_CTRL_C;
-  struct Player *player = g_player;
-
-  /*LONG res =*/ SetPlayerAttrs(player, PLAYER_AlarmTime,
-                            player->pl_MetricTime + s_CamdTicksPerMidiFrame,
-                            PLAYER_Ready, TRUE, TAG_END);
+  struct TimerBase *TimerBase = timerIOReq->tr_node.io_Device;
 
   // Let main thread know we're alive
   Signal(g_MainTask, SIGBREAKF_CTRL_E);
 
   initSuccess = TRUE;
 
+  struct EClockVal eclkStart;
+  ULONG eTicsPerMinute = ReadEClock(&eclkStart) * 60;
+
+  ULONG midiTicsPerMinute = 0;
+  ULONG waitTics = 0;
+
   while (TRUE) {
-    ULONG signals = Wait(signalMask);
-    if ((signals & playerSignalBitMask)) {
+    struct EClockVal eclkStart;
+    ReadEClock(&eclkStart);
 
-      LONG nextAlarm = player->pl_MetricTime + s_CamdTicksPerMidiFrame;
-      // Service the timer function, this is actually parsing the midi song and
-      // causing calls into oiur various FUNC_ midi functions.
-      g_service();
+    g_service();
 
-      /*LONG res =*/ SetPlayerAttrs(player, PLAYER_AlarmTime, nextAlarm,
-                                PLAYER_Ready, TRUE, TAG_END);
-    } else if (signals & SIGBREAKF_CTRL_C) {
+    struct EClockVal eclkStop;
+    ReadEClock(&eclkStop);
+
+    ULONG adjust = eclkStop.ev_lo - eclkStart.ev_lo;
+
+    if (midiTicsPerMinute != s_midiTicsPerMinute) {
+      midiTicsPerMinute = s_midiTicsPerMinute;
+      waitTics = eTicsPerMinute / midiTicsPerMinute;
+    }
+
+    if (waitTics > adjust) {
+      timerIOReq->tr_time.tv_micro = waitTics - adjust;
+      DoIO(&timerIOReq->tr_node);
+      WaitIO(&timerIOReq->tr_node);
+    }
+
+    ULONG signals = SetSignal(0, 0);
+    if (signals & SIGBREAKF_CTRL_C) {
       break;
     }
   };
@@ -413,14 +401,9 @@ failure:
     Signal(g_MainTask, SIGBREAKF_CTRL_C);
   }
 
-  if (g_player) {
-    SetConductorState(g_player, CONDSTATE_STOPPED, 0);
-    DeletePlayer(g_player);
-    g_player = NULL;
-  }
-  if (g_playerSignalBit != -1) {
-    FreeSignal(g_playerSignalBit);
-  }
+  CloseDevice(&timerIOReq->tr_node);
+  DeleteIORequest(timerIOReq);
+  DeleteMsgPort(timerMP);
 
   Forbid();
   Signal(g_MainTask, SIGBREAKF_CTRL_E);
