@@ -23,6 +23,8 @@
 #ifdef _WIN32
 # define WIN32_LEAN_AND_MEAN
 # include <windows.h>
+#elif defined(__AROS__) || defined(__AMIGA__)
+# include <proto/dos.h>
 #else
 # include <sys/types.h>
 # include <sys/time.h>
@@ -34,7 +36,10 @@ void ASS_Sleep(int msec)
 #ifdef _WIN32
 	Sleep(msec);
 #elif defined(__AROS__) || defined(__AMIGA__)
-	usleep(msec * 1000);
+	//usleep(msec * 1000);
+	ULONG ticks = msec / 20;
+	if (ticks < 1) ticks = 1;
+	Delay(ticks);
 #else
 	struct timeval tv;
 
