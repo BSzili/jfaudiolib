@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2009 Jonathon Fowler <jf@jonof.id.au>
+ Copyright (C) 2021 Mathias Heyer <sonode@gmx.de>
 
  This program is free software; you can redistribute it and/or
  modify it under the terms of the GNU General Public License
